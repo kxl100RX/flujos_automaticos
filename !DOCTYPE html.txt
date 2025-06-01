@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Constructor Visual de Proyectos con IA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Un color de fondo suave */
+            overflow: hidden; /* Evita barras de desplazamiento innecesarias */
+        }
+        .draggable {
+            cursor: grab;
+            position: absolute;
+            z-index: 10;
+        }
+        .draggable:active {
+            cursor: grabbing;
+        }
+        .connector {
+            position: absolute;
+            background-color: #3b82f6; /* Azul de Tailwind */
+            border-radius: 9999px; /* Completamente redondo */
+            z-index: 5;
+        }
+        .node-input, .node-output {
+            width: 16px;
+            height: 16px;
+            background-color: #a78bfa; /* Morado de Tailwind */
+            border-radius: 50%;
+            position: absolute;
+            cursor: pointer;
+            border: 2px solid #6d28d9; /* Morado oscuro */
+            z-index: 15;
+        }
+        .node-input {
+            left: -8px; /* Centra el círculo en el borde izquierdo */
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .node-output {
+            right: -8px; /* Centra el círculo en el borde derecho */
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .drawing-line {
+            position: absolute;
+            border-bottom: 2px solid #3b82f6; /* Línea azul */
+            transform-origin: 0 0;
+            z-index: 4;
+            pointer-events: none; /* Permite hacer clic a través de la línea */
+        }
+        /* Estilo para el nodo seleccionado */
+        .selected-node {
+            border-color: #ef4444; /* Rojo de Tailwind para resaltar */
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.5); /* Sombra para mejor visibilidad */
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 shadow-lg rounded-b-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-3xl font-bold">Constructor de Flujos con IA</h1>
+            <button class="bg-white text-blue-700 px-6 py-2 rounded-full shadow-md hover:bg-blue-100 transition-all duration-300">
+                Guardar Proyecto (Solo Maqueta)
+            </button>
+        </div>
+    </header>
+
+    <main class="flex flex-1 overflow-hidden">
+        <aside class="w-64 bg-white p-6 shadow-xl rounded-r-lg flex flex-col space-y-4 overflow-y-auto">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Servicios Disponibles</h2>
+            <div class="service-block bg-blue-100 text-blue-800 p-4 rounded-lg shadow-sm cursor-pointer hover:bg-blue-200 transition-colors duration-200" data-service="whatsapp-listen">
+                <p class="font-medium">Escuchar WhatsApp (Maqueta)</p>
+                <p class="text-sm text-blue-600">Simula la escucha de mensajes.</p>
+            </div>
+            <div class="service-block bg-green-100 text-green-800 p-4 rounded-lg shadow-sm cursor-pointer hover:bg-green-200 transition-colors duration-200" data-service="send-email">
+                <p class="font-medium">Enviar Email (Maqueta)</p>
+                <p class="text-sm text-green-600">Simula el envío de correos.</p>
+            </div>
+            <div class="service-block bg-purple-100 text-purple-800 p-4 rounded-lg shadow-sm cursor-pointer hover:bg-purple-200 transition-colors duration-200" data-service="data-transform">
+                <p class="font-medium">Transformar Datos (Maqueta)</p>
+                <p class="text-sm text-purple-600">Simula la manipulación de datos.</p>
+            </div>
+            <div class="service-block bg-yellow-100 text-yellow-800 p-4 rounded-lg shadow-sm cursor-pointer hover:bg-yellow-200 transition-colors duration-200" data-service="webhook">
+                <p class="font-medium">Webhook (Maqueta)</p>
+                <p class="text-sm text-yellow-600">Simula la recepción de eventos.</p>
+            </div>
+            <div class="service-block bg-red-100 text-red-800 p-4 rounded-lg shadow-sm cursor-pointer hover:bg-red-200 transition-colors duration-200" data-service="database-action">
+                <p class="font-medium">Acción en Base de Datos (Maqueta)</p>
+                <p class="text-sm text-red-600">Simula interacciones con DB.</p>
+            </div>
+        </aside>
+
+        <section id="design-area" class="flex-1 bg-gray-100 relative overflow-hidden p-8 rounded-l-lg shadow-inner">
+            <div class="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none"></div>
+            <h2 class="text-2xl font-bold text-gray-700 mb-6">Arrastra y Conecta tus Servicios Aquí</h2>
+            </section>
+
+        <aside id="properties-panel" class="w-80 bg-white p-6 shadow-xl rounded-l-lg flex flex-col space-y-4 overflow-y-auto hidden">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Propiedades del Bloque</h2>
+            <div class="flex flex-col space-y-2">
+                <label class="text-gray-600 font-medium">Tipo de Servicio:</label>
+                <p id="prop-service-type" class="text-gray-900 font-bold"></p>
+            </div>
+            <div class="flex flex-col space-y-2">
+                <label class="text-gray-600 font-medium">Descripción:</label>
+                <p id="prop-description" class="text-gray-700"></p>
+            </div>
+
+            <hr class="border-t border-gray-200 my-4">
+
+            <h3 class="text-lg font-semibold text-gray-800">Funciones con IA</h3>
+            <button id="generate-description-btn" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-purple-700 transition-colors duration-300 flex items-center justify-center">
+                <span class="mr-2">Generar Descripción ✨</span>
+                <span id="desc-loading-spinner" class="hidden animate-spin h-5 w-5 border-4 border-white border-t-transparent rounded-full"></span>
+            </button>
+            <p id="generated-description-output" class="text-sm text-gray-700 bg-gray-50 p-3 rounded-md mt-2 hidden"></p>
+
+            <button id="suggest-next-step-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-300 flex items-center justify-center">
+                <span class="mr-2">Sugerir Siguiente Paso ✨</span>
+                <span id="next-step-loading-spinner" class="hidden animate-spin h-5 w-5 border-4 border-white border-t-transparent rounded-full"></span>
+            </button>
+            <p id="suggested-next-step-output" class="text-sm text-gray-700 bg-gray-50 p-3 rounded-md mt-2 hidden"></p>
+
+            <button id="close-panel-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg shadow-md hover:bg-gray-400 transition-colors duration-300 mt-4">
+                Cerrar Panel
+            </button>
+        </aside>
+    </main>
+
+    <script>
+        const designArea = document.getElementById('design-area');
+        const propertiesPanel = document.getElementById('properties-panel');
+        const propServiceType = document.getElementById('prop-service-type');
+        const propDescription = document.getElementById('prop-description');
+        const generateDescriptionBtn = document.getElementById('generate-description-btn');
+        const descLoadingSpinner = document.getElementById('desc-loading-spinner');
+        const generatedDescriptionOutput = document.getElementById('generated-description-output');
+        const suggestNextStepBtn = document.getElementById('suggest-next-step-btn');
+        const nextStepLoadingSpinner = document.getElementById('next-step-loading-spinner');
+        const suggestedNextStepOutput = document.getElementById('suggested-next-step-output');
+        const closePanelBtn = document.getElementById('close-panel-btn');
+
+        let currentDraggingElement = null;
+        let isDrawingLine = false;
+        let startNode = null;
+        let currentLine = null;
+        let connections = []; // Almacena las conexiones (solo visualmente)
+        let selectedNode = null; // Nodo actualmente seleccionado para el panel de propiedades
+
+        // Función para crear un nuevo bloque de servicio
+        function createServiceNode(serviceType, x, y) {
+            const node = document.createElement('div');
+            node.className = 'draggable bg-white p-4 rounded-lg shadow-md border-2 border-gray-300 hover:border-blue-500 transition-colors duration-200 relative';
+            node.style.left = `${x}px`;
+            node.style.top = `${y}px`;
+            node.style.minWidth = '180px'; // Ancho mínimo para los bloques
+            node.style.maxWidth = '250px'; // Ancho máximo
+            node.style.display = 'flex';
+            node.style.flexDirection = 'column';
+            node.style.alignItems = 'center';
+            node.style.justifyContent = 'center';
+            node.style.textAlign = 'center';
+
+            let title = '';
+            let description = '';
+            let bgColorClass = '';
+            let textColorClass = '';
+
+            switch (serviceType) {
+                case 'whatsapp-listen':
+                    title = 'Escuchar WhatsApp';
+                    description = 'Recibe mensajes de WhatsApp.';
+                    bgColorClass = 'bg-blue-50';
+                    textColorClass = 'text-blue-700';
+                    break;
+                case 'send-email':
+                    title = 'Enviar Email';
+                    description = 'Envía un correo electrónico.';
+                    bgColorClass = 'bg-green-50';
+                    textColorClass = 'text-green-700';
+                    break;
+                case 'data-transform':
+                    title = 'Transformar Datos';
+                    description = 'Modifica o procesa datos.';
+                    bgColorClass = 'bg-purple-50';
+                    textColorClass = 'text-purple-700';
+                    break;
+                case 'webhook':
+                    title = 'Webhook';
+                    description = 'Envía o recibe datos HTTP.';
+                    bgColorClass = 'bg-yellow-50';
+                    textColorClass = 'text-yellow-700';
+                    break;
+                case 'database-action':
+                    title = 'Acción en Base de Datos'; // Actualizado para ser más descriptivo
+                    description = 'Interactúa con una base de datos.';
+                    bgColorClass = 'bg-red-50';
+                    textColorClass = 'text-red-700';
+                    break;
+                default:
+                    title = 'Servicio Desconocido';
+                    description = 'Descripción por defecto.';
+                    bgColorClass = 'bg-gray-50';
+                    textColorClass = 'text-gray-700';
+            }
+
+            node.classList.add(bgColorClass, textColorClass);
+            node.innerHTML = `
+                <p class="font-bold text-lg mb-1">${title}</p>
+                <p class="text-sm text-gray-500">${description}</p>
+                <div class="node-input"></div>
+                <div class="node-output"></div>
+            `;
+            node.dataset.serviceType = serviceType; // Almacena el tipo de servicio
+            node.dataset.nodeId = `node-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`; // ID único
+            node.dataset.nodeTitle = title; // Almacena el título para el panel
+            node.dataset.nodeDescription = description; // Almacena la descripción para el panel
+
+            designArea.appendChild(node);
+            makeDraggable(node);
+            addConnectionPoints(node);
+
+            // Añadir listener para seleccionar el nodo
+            node.addEventListener('click', (e) => {
+                // Evitar que el clic en los puntos de conexión seleccione el nodo
+                if (!e.target.classList.contains('node-input') && !e.target.classList.contains('node-output')) {
+                    selectNode(node);
+                }
+            });
+
+            return node;
+        }
+
+        // Hace un elemento arrastrable
+        function makeDraggable(element) {
+            let offsetX, offsetY;
+
+            element.addEventListener('mousedown', (e) => {
+                // Solo arrastra si no se hizo clic en un punto de conexión
+                if (!e.target.classList.contains('node-input') && !e.target.classList.contains('node-output')) {
+                    currentDraggingElement = element;
+                    offsetX = e.clientX - element.getBoundingClientRect().left;
+                    offsetY = e.clientY - element.getBoundingClientRect().top;
+                    element.style.cursor = 'grabbing';
+                }
+            });
+
+            designArea.addEventListener('mousemove', (e) => {
+                if (currentDraggingElement) {
+                    let newX = e.clientX - designArea.getBoundingClientRect().left - offsetX;
+                    let newY = e.clientY - designArea.getBoundingClientRect().top - offsetY;
+
+                    // Asegura que el elemento no salga del área de diseño
+                    newX = Math.max(0, Math.min(newX, designArea.offsetWidth - currentDraggingElement.offsetWidth));
+                    newY = Math.max(0, Math.min(newY, designArea.offsetHeight - currentDraggingElement.offsetHeight));
+
+                    currentDraggingElement.style.left = `${newX}px`;
+                    currentDraggingElement.style.top = `${newY}px`;
+
+                    // Actualiza las líneas conectadas
+                    updateConnections(currentDraggingElement.dataset.nodeId);
+                }
+            });
+
+            designArea.addEventListener('mouseup', () => {
+                if (currentDraggingElement) {
+                    currentDraggingElement.style.cursor = 'grab';
+                    currentDraggingElement = null;
+                }
+            });
+        }
+
+        // Añade los puntos de conexión a un nodo
+        function addConnectionPoints(node) {
+            const input = node.querySelector('.node-input');
+            const output = node.querySelector('.node-output');
+
+            output.addEventListener('mousedown', (e) => {
+                e.stopPropagation(); // Evita arrastrar el nodo al hacer clic en el punto
+                isDrawingLine = true;
+                startNode = {
+                    element: node,
+                    point: output,
+                    type: 'output'
+                };
+                currentLine = document.createElement('div');
+                currentLine.className = 'drawing-line';
+                designArea.appendChild(currentLine);
+            });
+
+            input.addEventListener('mouseup', (e) => {
+                e.stopPropagation();
+                if (isDrawingLine && startNode && startNode.type === 'output' && startNode.element !== node) {
+                    // Conecta el output del nodo inicial con el input de este nodo
+                    createConnection(startNode.element, node);
+                }
+                resetDrawingState();
+            });
+
+            // Cancelar la línea si se suelta el ratón en cualquier otro lugar
+            designArea.addEventListener('mouseup', () => {
+                if (isDrawingLine) {
+                    resetDrawingState();
+                }
+            });
+        }
+
+        // Resetea el estado de dibujo de la línea
+        function resetDrawingState() {
+            isDrawingLine = false;
+            startNode = null;
+            if (currentLine) {
+                currentLine.remove();
+                currentLine = null;
+            }
+        }
+
+        // Dibuja la línea mientras se arrastra
+        designArea.addEventListener('mousemove', (e) => {
+            if (isDrawingLine && startNode && currentLine) {
+                const startRect = startNode.point.getBoundingClientRect();
+                const designAreaRect = designArea.getBoundingClientRect();
+
+                const startX = startRect.left + startRect.width / 2 - designAreaRect.left;
+                const startY = startRect.top + startRect.height / 2 - designAreaRect.top;
+
+                const endX = e.clientX - designAreaRect.left;
+                const endY = e.clientY - designAreaRect.top;
+
+                const length = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+                const angle = Math.atan2(endY - startY, endX - startX) * 180 / Math.PI;
+
+                currentLine.style.width = `${length}px`;
+                currentLine.style.transform = `translate(${startX}px, ${startY}px) rotate(${angle}deg)`;
+            }
+        });
+
+        // Crea una conexión visual entre dos nodos
+        function createConnection(sourceNode, targetNode) {
+            const connectionId = `${sourceNode.dataset.nodeId}-${targetNode.dataset.nodeId}`;
+            // Evita duplicados
+            if (connections.some(conn => conn.id === connectionId)) {
+                return;
+            }
+
+            const connection = {
+                id: connectionId,
+                sourceId: sourceNode.dataset.nodeId,
+                targetId: targetNode.dataset.nodeId,
+                lineElement: document.createElement('div')
+            };
+
+            connection.lineElement.className = 'connector drawing-line'; // Reutiliza la clase de línea
+            designArea.appendChild(connection.lineElement);
+            connections.push(connection);
+            updateLinePosition(connection);
+        }
+
+        // Actualiza la posición de una línea de conexión
+        function updateLinePosition(connection) {
+            const sourceNode = document.querySelector(`[data-node-id="${connection.sourceId}"]`);
+            const targetNode = document.querySelector(`[data-node-id="${connection.targetId}"]`);
+
+            if (!sourceNode || !targetNode) {
+                // Si un nodo no existe (ej. fue eliminado), limpia la conexión
+                connection.lineElement.remove();
+                connections = connections.filter(conn => conn.id !== connection.id);
+                return;
+            }
+
+            const sourceOutput = sourceNode.querySelector('.node-output');
+            const targetInput = targetNode.querySelector('.node-input');
+
+            const sourceRect = sourceOutput.getBoundingClientRect();
+            const targetRect = targetInput.getBoundingClientRect();
+            const designAreaRect = designArea.getBoundingClientRect();
+
+            const startX = sourceRect.left + sourceRect.width / 2 - designAreaRect.left;
+            const startY = sourceRect.top + sourceRect.height / 2 - designAreaRect.top;
+
+            const endX = targetRect.left + targetRect.width / 2 - designAreaRect.left;
+            const endY = targetRect.top + targetRect.height / 2 - designAreaRect.top;
+
+            const length = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+            const angle = Math.atan2(endY - startY, endX - startX) * 180 / Math.PI;
+
+            connection.lineElement.style.width = `${length}px`;
+            connection.lineElement.style.transform = `translate(${startX}px, ${startY}px) rotate(${angle}deg)`;
+        }
+
+        // Actualiza todas las conexiones de un nodo específico
+        function updateConnections(nodeId) {
+            connections.forEach(conn => {
+                if (conn.sourceId === nodeId || conn.targetId === nodeId) {
+                    updateLinePosition(conn);
+                }
+            });
+        }
+
+        // Manejar el arrastre de los bloques de servicio desde el panel lateral
+        document.querySelectorAll('.service-block').forEach(block => {
+            block.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', block.dataset.service);
+                e.dataTransfer.effectAllowed = 'copy';
+            });
+        });
+
+        designArea.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Permite soltar
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        designArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const serviceType = e.dataTransfer.getData('text/plain');
+            const rect = designArea.getBoundingClientRect();
+            const x = e.clientX - rect.left - 100; // Ajuste para centrar el bloque
+            const y = e.clientY - rect.top - 30;  // Ajuste para centrar el bloque
+            createServiceNode(serviceType, x, y);
+        });
+
+        // Estilo para el patrón de la cuadrícula de fondo
+        const style = document.createElement('style');
+        style.innerHTML = `
+            .bg-grid-pattern {
+                background-size: 20px 20px;
+                background-image: radial-gradient(circle, #d1d5db 1px, transparent 1px); /* Gris claro */
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Ajustar el área de diseño al tamaño de la ventana
+        window.addEventListener('resize', () => {
+            connections.forEach(updateLinePosition);
+        });
+
+        // --- Lógica del Panel de Propiedades y Gemini API ---
+
+        // Función para seleccionar un nodo
+        function selectNode(node) {
+            if (selectedNode) {
+                selectedNode.classList.remove('selected-node');
+            }
+            selectedNode = node;
+            selectedNode.classList.add('selected-node');
+
+            // Actualizar el panel de propiedades
+            propServiceType.textContent = selectedNode.dataset.nodeTitle;
+            propDescription.textContent = selectedNode.dataset.nodeDescription;
+            generatedDescriptionOutput.textContent = ''; // Limpiar outputs anteriores
+            generatedDescriptionOutput.classList.add('hidden');
+            suggestedNextStepOutput.textContent = '';
+            suggestedNextStepOutput.classList.add('hidden');
+
+            propertiesPanel.classList.remove('hidden');
+        }
+
+        // Función para deseleccionar el nodo y ocultar el panel
+        function deselectNode() {
+            if (selectedNode) {
+                selectedNode.classList.remove('selected-node');
+                selectedNode = null;
+            }
+            propertiesPanel.classList.add('hidden');
+        }
+
+        // Deseleccionar nodo si se hace clic en el área de diseño fuera de un nodo
+        designArea.addEventListener('click', (e) => {
+            if (!e.target.closest('.draggable') && !e.target.closest('#properties-panel')) {
+                deselectNode();
+            }
+        });
+
+        // Cerrar panel de propiedades con el botón
+        closePanelBtn.addEventListener('click', deselectNode);
+
+        // Función para llamar a la API de Gemini
+        async function callGeminiAPI(prompt, outputElement, loadingSpinner) {
+            if (!selectedNode) return;
+
+            loadingSpinner.classList.remove('hidden');
+            outputElement.classList.add('hidden');
+            outputElement.textContent = ''; // Limpiar antes de la nueva respuesta
+
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = { contents: chatHistory };
+            const apiKey = ""; // La clave API se proporciona en tiempo de ejecución por Canvas
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    outputElement.textContent = text;
+                    outputElement.classList.remove('hidden');
+                } else {
+                    outputElement.textContent = 'Error: No se pudo obtener una respuesta del modelo.';
+                    outputElement.classList.remove('hidden');
+                    console.error('Respuesta inesperada de Gemini API:', result);
+                }
+            } catch (error) {
+                outputElement.textContent = `Error al conectar con la IA: ${error.message}`;
+                outputElement.classList.remove('hidden');
+                console.error('Error en la llamada a Gemini API:', error);
+            } finally {
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        // Event listener para el botón "Generar Descripción"
+        generateDescriptionBtn.addEventListener('click', () => {
+            if (selectedNode) {
+                const serviceType = selectedNode.dataset.nodeTitle;
+                const description = selectedNode.dataset.nodeDescription;
+                const prompt = `Genera una descripción concisa y profesional para un bloque de flujo de trabajo de tipo "${serviceType}". El bloque tiene la función de "${description}". La descripción debe ser de una sola frase y no más de 20 palabras.`;
+                callGeminiAPI(prompt, generatedDescriptionOutput, descLoadingSpinner);
+            }
+        });
+
+        // Event listener para el botón "Sugerir Siguiente Paso"
+        suggestNextStepBtn.addEventListener('click', () => {
+            if (selectedNode) {
+                const serviceType = selectedNode.dataset.nodeTitle;
+                const description = selectedNode.dataset.nodeDescription;
+                const prompt = `Dado un bloque de flujo de trabajo de tipo "${serviceType}" con la descripción "${description}", sugiere una acción lógica o un servicio que podría seguir a este bloque en un flujo de trabajo de automatización. La sugerencia debe ser concisa y no más de 10 palabras.`;
+                callGeminiAPI(prompt, suggestedNextStepOutput, nextStepLoadingSpinner);
+            }
+        });
+
+    </script>
+</body>
+</html>
